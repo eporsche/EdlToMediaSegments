@@ -47,15 +47,6 @@ public class EdlToMediaSegmentsProvider(
             return [];
         }
 
-        // TODO: Find a way to delete existing media segments if the EDL file changes, goes away, etc.
-        // If this item already has any media segments, ignore the edl file.
-        var parsedFilePath = Path.ChangeExtension(mediaItem.Path, ".edlparsed");
-        if (File.Exists(parsedFilePath))
-        {
-            logger.LogDebug("Item {ItemId} already has media segments, ignoring EDL file", request.ItemId);
-            return [];
-        }
-
         // Find EDL file next to the media file.
         var edlFilePath = Path.ChangeExtension(mediaItem.Path, ".edl");
         if (!File.Exists(edlFilePath))
@@ -64,18 +55,20 @@ public class EdlToMediaSegmentsProvider(
             return [];
         }
         logger.LogInformation("Found EDL file {EdlFilePath} for item {ItemId}", edlFilePath, request.ItemId);
-        // Touch the .edlparsed file to indicate we've processed this item.
-        File.WriteAllText(parsedFilePath, DateTime.UtcNow.ToString("o"));
-
+        
         // Read EDL file.
         // For each line, add a MediaSegmentDto.
         // EDL format is:
         // start stop action
         // where start and stop are in seconds, and action is an int, 0 - cut, 3 - commercial.
+        return ParseSegments(File.ReadAllLines(edlFilePath), item.Id, logger);
+    }
+
+    public static List<MediaSegmentDto> ParseSegments(string[] lines, Guid id, ILogger logger)
+    {
         var segments = new List<MediaSegmentDto>();
 
-        var edlLines = File.ReadAllLines(edlFilePath);
-        foreach (var line in edlLines)
+        foreach (var line in lines)
         {
             var parts = line.Split(' ');
             if (parts.Length != 3)
@@ -84,16 +77,30 @@ public class EdlToMediaSegmentsProvider(
                 continue;
             }
 
-            if (!int.TryParse(parts[0], out var start) || !int.TryParse(parts[1], out var stop) || !int.TryParse(parts[2], out var action))
+            // Before parsing, log all three parts so we can see what we've got.
+            logger.LogInformation("EDL line parts: Start='{Start}', Stop='{Stop}', Action='{Action}'", parts[0], parts[1], parts[2]);
+
+            // Log the three parts separately, so we can see which part is invalid.
+            if (!double.TryParse(parts[0], out var start))
             {
-                logger.LogWarning("EDL line '{Line}' has invalid numbers", line);
+                logger.LogWarning("EDL line '{Line}' has invalid start time {Start}", line, parts[0]);
+                continue;
+            }
+            if (!double.TryParse(parts[1], out var stop))
+            {
+                logger.LogWarning("EDL line '{Line}' has invalid stop time {Stop}", line, parts[1]);
+                continue;
+            }
+            if (!int.TryParse(parts[2], out var action))
+            {
+                logger.LogWarning("EDL line '{Line}' has invalid action {Action}", line, parts[2]);
                 continue;
             }
 
             segments.Add(new MediaSegmentDto
             {
                 Id = Guid.NewGuid(),
-                ItemId = item.Id,
+                ItemId = id,
                 Type = action switch
                 {
                     // TODO: flesh this out
