@@ -1,0 +1,130 @@
+name: Build & Release (MD5 only, auto-detect)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    env:
+      DLL_NAME: EdlToMediaSegments  # your plugin assembly name
+      PLUGIN_GUID: bbc965f4-1261-4cfc-ac0e-29244971097d
+      TARGET_ABI: "10.11.6.0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Locate solution/project
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          SLN=$(git ls-files '*.sln' | head -n1 || true)
+          CSPROJ=$(git ls-files '**/*.csproj' | grep -iE '/?'"${DLL_NAME}"'\.csproj$' | head -n1 || true)
+          if [ -z "$CSPROJ" ]; then
+            # fallback: first csproj in repo
+            CSPROJ=$(git ls-files '**/*.csproj' | head -n1 || true)
+          fi
+          if [ -z "$SLN" ] && [ -z "$CSPROJ" ]; then
+            echo "No .sln or .csproj found" >&2
+            exit 1
+          fi
+          echo "sln=$SLN" >> "$GITHUB_OUTPUT"
+          echo "csproj=$CSPROJ" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: |
+          if [ -n "${{ steps.locate.outputs.sln }}" ]; then
+            dotnet restore "${{ steps.locate.outputs.sln }}"
+          else
+            dotnet restore "${{ steps.locate.outputs.csproj }}"
+          fi
+
+      - name: Build (Release)
+        run: |
+          if [ -n "${{ steps.locate.outputs.sln }}" ]; then
+            dotnet build "${{ steps.locate.outputs.sln }}" -c Release --nologo
+          else
+            dotnet build "${{ steps.locate.outputs.csproj }}" -c Release --nologo
+          fi
+
+      - name: Find built DLL
+        id: finddll
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          # search under bin/Release for the exact DLL
+          DLLS=(**/bin/Release/**/${DLL_NAME}.dll)
+          if [ ${#DLLS[@]} -eq 0 ]; then
+            echo "Could not find ${DLL_NAME}.dll under bin/Release" >&2
+            find . -maxdepth 4 -type f -name "${DLL_NAME}.dll" -print >&2 || true
+            exit 1
+          fi
+          # pick the first match
+          echo "dll=${DLLS[0]}" >> "$GITHUB_OUTPUT"
+          echo "Using: ${DLLS[0]}"
+
+      - name: Package zip (DLL + meta.json) and MD5
+        id: zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+
+          # Derive 4-part version from tag (strip leading 'v', pad with .0 as needed)
+          VERSION="${TAG#v}"
+          IFS='.' read -ra PARTS <<< "$VERSION"
+          while [ "${#PARTS[@]}" -lt 4 ]; do PARTS+=("0"); done
+          VERSION_FULL="${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}"
+
+          mkdir -p dist
+          cp "${{ steps.finddll.outputs.dll }}" "dist/${{ env.DLL_NAME }}.dll"
+
+          cat > dist/meta.json <<EOF
+          {
+              "category": "Metadata",
+              "guid": "${{ env.PLUGIN_GUID }}",
+              "name": "${{ env.DLL_NAME }}",
+              "description": "Converts EDL files to Media Segments for automatic skipping in playback.",
+              "owner": "rrhett",
+              "overview": "Convert EDL files to Media Segments",
+              "targetAbi": "${{ env.TARGET_ABI }}",
+              "version": "${VERSION_FULL}",
+              "status": "Active",
+              "autoUpdate": false,
+              "imageUrl": null
+          }
+          EOF
+
+          (cd dist && zip -r "EdlToMediaSegments-${TAG}.zip" "${{ env.DLL_NAME }}.dll" meta.json)
+          (cd dist && md5sum "EdlToMediaSegments-${TAG}.zip" | awk '{print tolower($1)}' > "EdlToMediaSegments-${TAG}.zip.md5")
+          echo "zip=dist/EdlToMediaSegments-${TAG}.zip" >> "$GITHUB_OUTPUT"
+          echo "md5=$(cut -d' ' -f1 dist/EdlToMediaSegments-${TAG}.zip.md5)" >> "$GITHUB_OUTPUT"
+
+      - name: Create / Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }} Latest
+          make_latest: true
+          draft: false
+          prerelease: false
+          body: |
+            **md5:** ${{ steps.zip.outputs.md5 }}
+          files: |
+            ${{ steps.zip.outputs.zip }}
+            ${{ steps.zip.outputs.zip }}.md5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
