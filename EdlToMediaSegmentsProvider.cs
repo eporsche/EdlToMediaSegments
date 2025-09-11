@@ -21,22 +21,6 @@ public class EdlToMediaSegmentsProvider(
     /// <inheritdoc />
     public ValueTask<bool> Supports(BaseItem item) => new(item is IHasMediaSources);
 
-    // private MediaSegmentType? GetMediaSegmentType(string name)
-    // {
-    //     var mappings = Plugin.Instance?.Configuration.Patterns();
-
-    //     foreach (var item in mappings!.Where(e => !string.IsNullOrWhiteSpace(e.Regex)))
-    //     {
-    //         if (!string.IsNullOrEmpty(item.Regex)
-    //             && Regex.IsMatch(name, item.Regex, RegexOptions.IgnoreCase | RegexOptions.Singleline))
-    //         {
-    //             return item.Type;
-    //         }
-    //     }
-
-    //     return null;
-    // }
-
     /// <inheritdoc />
     public async Task<IReadOnlyList<MediaSegmentDto>> GetMediaSegments(MediaSegmentGenerationRequest request, CancellationToken cancellationToken)
     {
@@ -49,19 +33,15 @@ public class EdlToMediaSegmentsProvider(
 
         // Find EDL file next to the media file.
         var edlFilePath = Path.ChangeExtension(mediaItem.Path, ".edl");
-        if (!File.Exists(edlFilePath))
+        if (!await Task.Run(() => File.Exists(edlFilePath), cancellationToken))
         {
             logger.LogDebug("EDL file {EdlFilePath} does not exist for item {ItemId}", edlFilePath, request.ItemId);
             return [];
         }
         logger.LogInformation("Found EDL file {EdlFilePath} for item {ItemId}", edlFilePath, request.ItemId);
         
-        // Read EDL file.
-        // For each line, add a MediaSegmentDto.
-        // EDL format is:
-        // start stop action
-        // where start and stop are in seconds, and action is an int, 0 - cut, 3 - commercial.
-        return ParseSegments(File.ReadAllLines(edlFilePath), item.Id, logger);
+        // Read EDL file and parse the segments.
+        return ParseSegments(await Task.Run(() => File.ReadAllLines(edlFilePath), cancellationToken), item.Id, logger);
     }
 
     public static List<MediaSegmentDto> ParseSegments(string[] lines, Guid id, ILogger logger)
@@ -77,35 +57,24 @@ public class EdlToMediaSegmentsProvider(
                 continue;
             }
 
-            // Before parsing, log all three parts so we can see what we've got.
-            logger.LogInformation("EDL line parts: Start='{Start}', Stop='{Stop}', Action='{Action}'", parts[0], parts[1], parts[2]);
-
-            // Log the three parts separately, so we can see which part is invalid.
-            if (!double.TryParse(parts[0], out var start))
+            if (!double.TryParse(parts[0], out var start) || !double.TryParse(parts[1], out var stop) || !int.TryParse(parts[2], out var action))
             {
-                logger.LogWarning("EDL line '{Line}' has invalid start time {Start}", line, parts[0]);
+                logger.LogWarning("EDL line '{Line}' has invalid format. Start='{Start}', Stop='{Stop}', Action='{Action}'", line, parts[0], parts[1], parts[2]);
                 continue;
             }
-            if (!double.TryParse(parts[1], out var stop))
-            {
-                logger.LogWarning("EDL line '{Line}' has invalid stop time {Stop}", line, parts[1]);
-                continue;
-            }
-            if (!int.TryParse(parts[2], out var action))
-            {
-                logger.LogWarning("EDL line '{Line}' has invalid action {Action}", line, parts[2]);
-                continue;
-            }
-
+            
             segments.Add(new MediaSegmentDto
             {
                 Id = Guid.NewGuid(),
                 ItemId = id,
                 Type = action switch
                 {
-                    // TODO: flesh this out
-                    0 => MediaSegmentType.Commercial, // Cut
-                    3 => MediaSegmentType.Commercial, // CommercialBreak
+                    // This doesn't strictly agree with the EDL spec, but it is what Jellyfin understands.
+                    0 => MediaSegmentType.Intro,
+                    1 => MediaSegmentType.Preview,
+                    2 => MediaSegmentType.Recap,
+                    3 => MediaSegmentType.Commercial,
+                    4 => MediaSegmentType.Outro,
                     _ => MediaSegmentType.Unknown
                 },
                 StartTicks = ConvertToTicks(start),
