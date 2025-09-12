@@ -3,6 +3,8 @@
 This plugin reads EDL files next to your media files and adds them as Media
 Segments automatically.
 
+This is my solution for https://features.jellyfin.org/posts/180/support-for-edl-comskip-files
+
 ## Installation Instructions
 
 1. Add this plugin repository to your server:
