@@ -50,7 +50,7 @@ public class EdlToMediaSegmentsProvider(
 
         foreach (var line in lines)
         {
-            var parts = line.Split(' ');
+            var parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length != 3)
             {
                 logger.LogWarning("EDL line '{Line}' is not in the correct format", line);
