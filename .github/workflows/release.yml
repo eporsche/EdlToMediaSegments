@@ -1,4 +1,4 @@
-name: Build & Release
+name: Build & Release (MD5 only)
 
 on:
   push:
@@ -10,45 +10,65 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # allow uploading release assets
+      contents: write  # needed to upload release assets
+
+    env:
+      PROJECT_PATH: src/EdlToMediaSegments/EdlToMediaSegments.csproj
+      DLL_NAME: EdlToMediaSegments
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      # TODO: build your plugin/app here if needed
-      # - uses: actions/setup-dotnet@v4
-      # - run: dotnet publish -c Release -o out
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
 
-      - name: Package artifact
+      - name: Restore dependencies
+        run: dotnet restore "$PROJECT_PATH"
+
+      - name: Build (Release)
+        run: dotnet build "$PROJECT_PATH" -c Release --nologo
+
+      - name: Locate build output
+        id: build
+        shell: bash
         run: |
+          TFM=$(jq -r '.PropertyGroup[]?.TargetFramework // empty' "$PROJECT_PATH" | tail -n1)
+          [ -z "$TFM" ] && TFM=net8.0
+          OUT="$(dirname "$PROJECT_PATH")/bin/Release/${TFM}"
+          echo "out_dir=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Create release zip (DLL only)
+        id: zip
+        run: |
+          TAG="${GITHUB_REF_NAME}"
           mkdir -p dist
-          # Package what you want to ship:
-          zip -r "dist/EdlToMediaSegments-${{ github.ref_name }}.zip" src README.md LICENSE
+          cp "${{ steps.build.outputs.out_dir }}/${{ env.DLL_NAME }}.dll" dist/
+          cd dist
+          ZIP="EdlToMediaSegments-${TAG}.zip"
+          zip -r "$ZIP" "${{ env.DLL_NAME }}.dll"
+          md5sum "$ZIP" | awk '{print tolower($1)}' > "$ZIP.md5"
+          echo "zip=dist/$ZIP" >> "$GITHUB_OUTPUT"
+          echo "md5=$(cut -d' ' -f1 "$ZIP.md5")" >> "$GITHUB_OUTPUT"
+          cd ..
+        shell: bash
 
-      - name: Generate SHA256
-        id: sha
-        working-directory: dist
-        run: |
-          sha256sum "EdlToMediaSegments-${{ github.ref_name }}.zip" > "EdlToMediaSegments-${{ github.ref_name }}.zip.sha256"
-          # capture the raw hash for the release notes
-          echo "hash=$(cut -d' ' -f1 EdlToMediaSegments-${{ github.ref_name }}.zip.sha256)" >> "$GITHUB_OUTPUT"
-
-      - name: Create/Update GitHub Release and upload assets
+      - name: Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }} Latest
-          make_latest: true           # ensures the "Latest" badge
+          make_latest: true
           draft: false
           prerelease: false
           body: |
             Initial release.
 
-            Includes functionality to convert .edl files to Media Segments as Intro, Preview, Recap, Commercial or Outro, based on start and stop time in seconds.
-
-            **sha256:** ${{ steps.sha.outputs.hash }}
+            **md5:** ${{ steps.zip.outputs.md5 }}
           files: |
-            dist/EdlToMediaSegments-${{ github.ref_name }}.zip
-            dist/EdlToMediaSegments-${{ github.ref_name }}.zip.sha256
+            ${{ steps.zip.outputs.zip }}
+            ${{ steps.zip.outputs.zip }}.md5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
