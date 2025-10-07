@@ -1,0 +1,54 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # allow uploading release assets
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO: build your plugin/app here if needed
+      # - uses: actions/setup-dotnet@v4
+      # - run: dotnet publish -c Release -o out
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          # Package what you want to ship:
+          zip -r "dist/EdlToMediaSegments-${{ github.ref_name }}.zip" src README.md LICENSE
+
+      - name: Generate SHA256
+        id: sha
+        working-directory: dist
+        run: |
+          sha256sum "EdlToMediaSegments-${{ github.ref_name }}.zip" > "EdlToMediaSegments-${{ github.ref_name }}.zip.sha256"
+          # capture the raw hash for the release notes
+          echo "hash=$(cut -d' ' -f1 EdlToMediaSegments-${{ github.ref_name }}.zip.sha256)" >> "$GITHUB_OUTPUT"
+
+      - name: Create/Update GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }} Latest
+          make_latest: true           # ensures the "Latest" badge
+          draft: false
+          prerelease: false
+          body: |
+            Initial release.
+
+            Includes functionality to convert .edl files to Media Segments as Intro, Preview, Recap, Commercial or Outro, based on start and stop time in seconds.
+
+            **sha256:** ${{ steps.sha.outputs.hash }}
+          files: |
+            dist/EdlToMediaSegments-${{ github.ref_name }}.zip
+            dist/EdlToMediaSegments-${{ github.ref_name }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
