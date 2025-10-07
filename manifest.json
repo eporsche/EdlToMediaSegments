@@ -8,7 +8,7 @@
         "overview": "Convert EDL files to Media Segments",
         "versions": [
             {
-                "checksum": "812e5fbdabc30004e180b3aafc35fac9",
+                "checksum": "3A549ABDBC4820F861A1E1ADDDCD5FF2",
                 "changelog": "Initial release.",
                 "targetAbi": "10.10.6.0",
                 "sourceUrl": "https://github.com/eporsche/EdlToMediaSegments/archive/refs/tags/v1.0.0.0.zip",
