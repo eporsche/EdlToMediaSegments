@@ -14,6 +14,8 @@ jobs:
 
     env:
       DLL_NAME: EdlToMediaSegments  # your plugin assembly name
+      PLUGIN_GUID: bbc965f4-1261-4cfc-ac0e-29244971097d
+      TARGET_ABI: "10.11.6.0"
 
     steps:
       - uses: actions/checkout@v4
@@ -74,27 +76,12 @@ jobs:
           echo "dll=${DLLS[0]}" >> "$GITHUB_OUTPUT"
           echo "Using: ${DLLS[0]}"
 
-      - name: Package zip (DLL only) and MD5
+      - name: Package zip (DLL + meta.json) and MD5
         id: zip
         shell: bash
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          mkdir -p dist
-          cp "${{ steps.finddll.outputs.dll }}" "dist/${{ env.DLL_NAME }}.dll"
-          (cd dist && zip -r "EdlToMediaSegments-${TAG}.zip" "${{ env.DLL_NAME }}.dll")
-          (cd dist && md5sum "EdlToMediaSegments-${TAG}.zip" | awk '{print tolower($1)}' > "EdlToMediaSegments-${TAG}.zip.md5")
-          echo "zip=dist/EdlToMediaSegments-${TAG}.zip" >> "$GITHUB_OUTPUT"
-          echo "md5=$(cut -d' ' -f1 dist/EdlToMediaSegments-${TAG}.zip.md5)" >> "$GITHUB_OUTPUT"
-
-      - name: Update and push manifest.json
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          CHECKSUM="${{ steps.zip.outputs.md5 }}"
-          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/EdlToMediaSegments-${TAG}.zip"
-          TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
           # Derive 4-part version from tag (strip leading 'v', pad with .0 as needed)
           VERSION="${TAG#v}"
@@ -102,35 +89,29 @@ jobs:
           while [ "${#PARTS[@]}" -lt 4 ]; do PARTS+=("0"); done
           VERSION_FULL="${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p dist
+          cp "${{ steps.finddll.outputs.dll }}" "dist/${{ env.DLL_NAME }}.dll"
 
-          # Switch to main BEFORE modifying files to avoid checkout conflicts
-          # Use full refspecs to avoid ambiguity if a tag named 'main' also exists
-          git fetch origin refs/heads/main:refs/remotes/origin/main
-          git checkout -B main origin/main
+          cat > dist/meta.json <<EOF
+          {
+              "category": "Metadata",
+              "guid": "${{ env.PLUGIN_GUID }}",
+              "name": "${{ env.DLL_NAME }}",
+              "description": "Converts EDL files to Media Segments for automatic skipping in playback.",
+              "owner": "rrhett",
+              "overview": "Convert EDL files to Media Segments",
+              "targetAbi": "${{ env.TARGET_ABI }}",
+              "version": "${VERSION_FULL}",
+              "status": "Active",
+              "autoUpdate": false,
+              "imageUrl": null
+          }
+          EOF
 
-          python3 - <<PYEOF
-          import json
-          with open('manifest.json') as f:
-              m = json.load(f)
-          m[0]['versions'][0]['checksum'] = '${CHECKSUM}'
-          m[0]['versions'][0]['sourceUrl'] = '${SOURCE_URL}'
-          m[0]['versions'][0]['timestamp'] = '${TIMESTAMP}'
-          m[0]['versions'][0]['version'] = '${VERSION_FULL}'
-          with open('manifest.json', 'w') as f:
-              json.dump(m, f, indent=4)
-              f.write('\n')
-          print('manifest.json updated')
-          PYEOF
-
-          git add manifest.json
-          if git diff --staged --quiet; then
-            echo "manifest.json unchanged, skipping commit"
-          else
-            git commit -m "Update checksum in manifest.json [skip ci]"
-            git push origin refs/heads/main:refs/heads/main
-          fi
+          (cd dist && zip -r "EdlToMediaSegments-${TAG}.zip" "${{ env.DLL_NAME }}.dll" meta.json)
+          (cd dist && md5sum "EdlToMediaSegments-${TAG}.zip" | awk '{print tolower($1)}' > "EdlToMediaSegments-${TAG}.zip.md5")
+          echo "zip=dist/EdlToMediaSegments-${TAG}.zip" >> "$GITHUB_OUTPUT"
+          echo "md5=$(cut -d' ' -f1 dist/EdlToMediaSegments-${TAG}.zip.md5)" >> "$GITHUB_OUTPUT"
 
       - name: Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
