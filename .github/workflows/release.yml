@@ -123,7 +123,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Switch to main so we push cleanly (tag checkout leaves a detached HEAD)
-          git fetch origin main
+          git fetch origin main:refs/remotes/origin/main
           git checkout -B main origin/main
 
           # Re-apply manifest changes onto main (the file was updated in the workspace above)
