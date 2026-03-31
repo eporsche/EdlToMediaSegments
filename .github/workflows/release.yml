@@ -106,7 +106,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Switch to main BEFORE modifying files to avoid checkout conflicts
-          git fetch origin main:refs/remotes/origin/main
+          # Use full refspecs to avoid ambiguity if a tag named 'main' also exists
+          git fetch origin refs/heads/main:refs/remotes/origin/main
           git checkout -B main origin/main
 
           python3 - <<PYEOF
@@ -128,7 +129,7 @@ jobs:
             echo "manifest.json unchanged, skipping commit"
           else
             git commit -m "Update checksum in manifest.json [skip ci]"
-            git push origin main
+            git push origin refs/heads/main:refs/heads/main
           fi
 
       - name: Create / Update GitHub Release
