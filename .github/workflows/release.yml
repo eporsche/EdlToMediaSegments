@@ -87,7 +87,7 @@ jobs:
           echo "zip=dist/EdlToMediaSegments-${TAG}.zip" >> "$GITHUB_OUTPUT"
           echo "md5=$(cut -d' ' -f1 dist/EdlToMediaSegments-${TAG}.zip.md5)" >> "$GITHUB_OUTPUT"
 
-      - name: Update manifest.json
+      - name: Update and push manifest.json
         shell: bash
         run: |
           set -euo pipefail
@@ -101,6 +101,13 @@ jobs:
           IFS='.' read -ra PARTS <<< "$VERSION"
           while [ "${#PARTS[@]}" -lt 4 ]; do PARTS+=("0"); done
           VERSION_FULL="${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Switch to main BEFORE modifying files to avoid checkout conflicts
+          git fetch origin main:refs/remotes/origin/main
+          git checkout -B main origin/main
 
           python3 - <<PYEOF
           import json
@@ -116,17 +123,6 @@ jobs:
           print('manifest.json updated')
           PYEOF
 
-      - name: Commit and push manifest.json
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Switch to main so we push cleanly (tag checkout leaves a detached HEAD)
-          git fetch origin main:refs/remotes/origin/main
-          git checkout -B main origin/main
-
-          # Re-apply manifest changes onto main (the file was updated in the workspace above)
           git add manifest.json
           if git diff --staged --quiet; then
             echo "manifest.json unchanged, skipping commit"
