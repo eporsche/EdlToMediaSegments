@@ -1,22 +1,7 @@
+using Jellyfin.Database.Implementations.Enums;
 using MediaBrowser.Model.Plugins;
 
 namespace EdlToMediaSegments.Configuration;
-
-/// <summary>
-/// The configuration options.
-/// </summary>
-public enum SomeOptions
-{
-    /// <summary>
-    /// Option one.
-    /// </summary>
-    OneOption,
-
-    /// <summary>
-    /// Second option.
-    /// </summary>
-    AnotherOption
-}
 
 /// <summary>
 /// Plugin configuration.
@@ -28,30 +13,30 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public PluginConfiguration()
     {
-        // set default options here
-        Options = SomeOptions.AnotherOption;
-        TrueFalseSetting = true;
-        AnInteger = 2;
-        AString = "string";
+        // Default mapping: Comskip writes commercials as action 0 (cut)
+        EdlAction0 = MediaSegmentType.Commercial;
+        EdlAction1 = MediaSegmentType.Commercial;
+        EdlAction2 = MediaSegmentType.Commercial;
+        EdlAction3 = MediaSegmentType.Commercial;
     }
 
     /// <summary>
-    /// Gets or sets a value indicating whether some true or false setting is enabled..
+    /// Gets or sets the segment type for EDL action 0 (Cut).
     /// </summary>
-    public bool TrueFalseSetting { get; set; }
+    public MediaSegmentType EdlAction0 { get; set; }
 
     /// <summary>
-    /// Gets or sets an integer setting.
+    /// Gets or sets the segment type for EDL action 1 (Mute).
     /// </summary>
-    public int AnInteger { get; set; }
+    public MediaSegmentType EdlAction1 { get; set; }
 
     /// <summary>
-    /// Gets or sets a string setting.
+    /// Gets or sets the segment type for EDL action 2 (Scene marker).
     /// </summary>
-    public string AString { get; set; }
+    public MediaSegmentType EdlAction2 { get; set; }
 
     /// <summary>
-    /// Gets or sets an enum option.
+    /// Gets or sets the segment type for EDL action 3 (Commercial skip).
     /// </summary>
-    public SomeOptions Options { get; set; }
+    public MediaSegmentType EdlAction3 { get; set; }
 }

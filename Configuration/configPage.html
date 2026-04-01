@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EDL to Media Segments</title>
+</head>
+<body>
+    <div id="EdlToMediaSegmentsConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+         data-require="emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="EdlToMediaSegmentsConfigForm">
+                    <div class="verticalSection">
+                        <h2 class="sectionTitle">EDL Action Mapping</h2>
+                        <p>Map each EDL action code to a Jellyfin Media Segment type. Comskip typically writes commercials as action 0 (Cut).</p>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="selectEdlAction0">Action 0 (Cut)</label>
+                            <select is="emby-select" id="selectEdlAction0" class="emby-select">
+                                <option value="Commercial">Commercial</option>
+                                <option value="Intro">Intro</option>
+                                <option value="Outro">Outro</option>
+                                <option value="Preview">Preview</option>
+                                <option value="Recap">Recap</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="selectEdlAction1">Action 1 (Mute)</label>
+                            <select is="emby-select" id="selectEdlAction1" class="emby-select">
+                                <option value="Commercial">Commercial</option>
+                                <option value="Intro">Intro</option>
+                                <option value="Outro">Outro</option>
+                                <option value="Preview">Preview</option>
+                                <option value="Recap">Recap</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="selectEdlAction2">Action 2 (Scene Marker)</label>
+                            <select is="emby-select" id="selectEdlAction2" class="emby-select">
+                                <option value="Commercial">Commercial</option>
+                                <option value="Intro">Intro</option>
+                                <option value="Outro">Outro</option>
+                                <option value="Preview">Preview</option>
+                                <option value="Recap">Recap</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="selectEdlAction3">Action 3 (Commercial Skip)</label>
+                            <select is="emby-select" id="selectEdlAction3" class="emby-select">
+                                <option value="Commercial">Commercial</option>
+                                <option value="Intro">Intro</option>
+                                <option value="Outro">Outro</option>
+                                <option value="Preview">Preview</option>
+                                <option value="Recap">Recap</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var EdlToMediaSegmentsConfig = {
+                pluginUniqueId: 'bbc965f4-1261-4cfc-ac0e-29244971097d'
+            };
+
+            document.querySelector('#EdlToMediaSegmentsConfigPage')
+                .addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(EdlToMediaSegmentsConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#selectEdlAction0').value = config.EdlAction0;
+                        document.querySelector('#selectEdlAction1').value = config.EdlAction1;
+                        document.querySelector('#selectEdlAction2').value = config.EdlAction2;
+                        document.querySelector('#selectEdlAction3').value = config.EdlAction3;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+            document.querySelector('#EdlToMediaSegmentsConfigForm')
+                .addEventListener('submit', function (e) {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(EdlToMediaSegmentsConfig.pluginUniqueId).then(function (config) {
+                        config.EdlAction0 = document.querySelector('#selectEdlAction0').value;
+                        config.EdlAction1 = document.querySelector('#selectEdlAction1').value;
+                        config.EdlAction2 = document.querySelector('#selectEdlAction2').value;
+                        config.EdlAction3 = document.querySelector('#selectEdlAction3').value;
+                        ApiClient.updatePluginConfiguration(EdlToMediaSegmentsConfig.pluginUniqueId, config).then(function () {
+                            Dashboard.processPluginConfigurationUpdateResult();
+                        });
+                    });
+                    e.preventDefault();
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>

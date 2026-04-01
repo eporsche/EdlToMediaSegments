@@ -64,18 +64,17 @@ public class EdlToMediaSegmentsProvider(
                 continue;
             }
             
+            var config = Plugin.Instance?.Configuration;
             segments.Add(new MediaSegmentDto
             {
                 Id = Guid.NewGuid(),
                 ItemId = id,
                 Type = action switch
                 {
-                    // This doesn't strictly agree with the EDL spec, but it is what Jellyfin understands.
-                    0 => MediaSegmentType.Intro,
-                    1 => MediaSegmentType.Preview,
-                    2 => MediaSegmentType.Recap,
-                    3 => MediaSegmentType.Commercial,
-                    4 => MediaSegmentType.Outro,
+                    0 => config?.EdlAction0 ?? MediaSegmentType.Commercial,
+                    1 => config?.EdlAction1 ?? MediaSegmentType.Commercial,
+                    2 => config?.EdlAction2 ?? MediaSegmentType.Commercial,
+                    3 => config?.EdlAction3 ?? MediaSegmentType.Commercial,
                     _ => MediaSegmentType.Unknown
                 },
                 StartTicks = ConvertToTicks(start),
