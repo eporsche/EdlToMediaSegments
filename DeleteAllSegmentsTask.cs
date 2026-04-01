@@ -1,3 +1,4 @@
+using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
@@ -39,7 +40,7 @@ public class DeleteAllSegmentsTask(
         {
             IsVirtualItem = false,
             Recursive = true,
-            HasMediaSources = true
+            MediaTypes = [MediaType.Video, MediaType.Audio]
         };
 
         var items = libraryManager.GetItemList(query);
