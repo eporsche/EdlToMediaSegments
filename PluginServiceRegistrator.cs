@@ -1,6 +1,7 @@
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Controller.Plugins;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EdlToMediaSegments;
@@ -12,5 +13,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<IMediaSegmentProvider, EdlToMediaSegmentsProvider>();
+        serviceCollection.AddSingleton<IScheduledTask, DeleteAllSegmentsTask>();
     }
 }
