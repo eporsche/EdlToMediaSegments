@@ -43,6 +43,17 @@ jobs:
           echo "sln=$SLN" >> "$GITHUB_OUTPUT"
           echo "csproj=$CSPROJ" >> "$GITHUB_OUTPUT"
 
+      - name: Derive version from tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Derive 4-part version from tag (strip leading 'v', pad with .0 as needed)
+          VERSION="${GITHUB_REF_NAME#v}"
+          IFS='.' read -ra PARTS <<< "$VERSION"
+          while [ "${#PARTS[@]}" -lt 4 ]; do PARTS+=("0"); done
+          echo "full=${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}" >> "$GITHUB_OUTPUT"
+
       - name: Restore
         run: |
           if [ -n "${{ steps.locate.outputs.sln }}" ]; then
@@ -54,9 +65,9 @@ jobs:
       - name: Build (Release)
         run: |
           if [ -n "${{ steps.locate.outputs.sln }}" ]; then
-            dotnet build "${{ steps.locate.outputs.sln }}" -c Release --nologo
+            dotnet build "${{ steps.locate.outputs.sln }}" -c Release --nologo -p:Version=${{ steps.version.outputs.full }}
           else
-            dotnet build "${{ steps.locate.outputs.csproj }}" -c Release --nologo
+            dotnet build "${{ steps.locate.outputs.csproj }}" -c Release --nologo -p:Version=${{ steps.version.outputs.full }}
           fi
 
       - name: Find built DLL
@@ -83,11 +94,7 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
 
-          # Derive 4-part version from tag (strip leading 'v', pad with .0 as needed)
-          VERSION="${TAG#v}"
-          IFS='.' read -ra PARTS <<< "$VERSION"
-          while [ "${#PARTS[@]}" -lt 4 ]; do PARTS+=("0"); done
-          VERSION_FULL="${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}"
+          VERSION_FULL="${{ steps.version.outputs.full }}"
 
           mkdir -p dist
           cp "${{ steps.finddll.outputs.dll }}" "dist/${{ env.DLL_NAME }}.dll"
