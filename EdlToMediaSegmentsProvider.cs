@@ -45,6 +45,9 @@ public class EdlToMediaSegmentsProvider(
         return ParseSegments(await Task.Run(() => File.ReadAllLines(edlFilePath), cancellationToken), item.Id, logger);
     }
 
+    /// <inheritdoc />
+    public Task CleanupExtractedData(Guid itemId, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public static List<MediaSegmentDto> ParseSegments(string[] lines, Guid id, ILogger logger)
     {
         var segments = new List<MediaSegmentDto>();
